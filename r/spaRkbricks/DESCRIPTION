@@ -1,0 +1,30 @@
+Package: spaRkbricks
+Title: Connect to Databricks Spark with Multi-Auth Support (OAuth and PAT)
+Version: 0.1.0
+Authors@R:
+    person("Marck", "Vaisman", email = "marck@synaptiq.ai", role = c("aut", "cre"))
+Description: Provides functions to connect to Databricks Spark clusters using
+    either OAuth (via Databricks CLI) or Personal Access Token (PAT) authentication.
+    Uses the sparkbricks Python package via reticulate for reliable connectivity,
+    automatic OAuth token refresh, and proper session management. Includes cluster
+    lifecycle management (start/stop) and properly handles session cleanup.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
+URL: https://github.com/mvaisman/spaRkbricks
+BugReports: https://github.com/mvaisman/spaRkbricks/issues
+Imports:
+    reticulate (>= 1.35),
+    sparklyr (>= 1.8.0)
+Suggests:
+    dplyr,
+    dbplyr,
+    here,
+    dotenv
+Config/reticulate:
+  list(
+    packages = list(
+      list(package = "sparkbricks", pip = TRUE)
+    )
+  )

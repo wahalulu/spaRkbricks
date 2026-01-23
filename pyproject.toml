@@ -1,0 +1,13 @@
+[project]
+name = "sparkbricks-workspace"
+version = "0.1.0"
+description = "Workspace for spaRkbricks - Databricks connector with multi-auth support"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+
+[tool.uv.workspace]
+members = ["python/sparkbricks"]
+
+[tool.uv.sources]
+sparkbricks = { workspace = true }
