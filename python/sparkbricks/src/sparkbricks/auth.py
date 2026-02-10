@@ -112,6 +112,35 @@ class AuthConfig:
         )
 
 
+def _get_profile_config(profile: str) -> dict[str, str]:
+    """Read configuration from ~/.databrickscfg for a given profile.
+
+    This provides a fallback config source so that users who configure
+    profiles in ~/.databrickscfg (via ``databricks auth login``) don't
+    need to duplicate settings as environment variables.
+
+    Args:
+        profile: Profile name (e.g., "DEFAULT", "PROD")
+
+    Returns:
+        Dict with profile settings (host, cluster_id, token, etc.)
+        Empty dict if profile not found or file doesn't exist.
+    """
+    import configparser
+
+    config_path = Path.home() / ".databrickscfg"
+    if not config_path.exists():
+        return {}
+
+    config = configparser.ConfigParser()
+    config.read(config_path)
+
+    if profile not in config:
+        return {}
+
+    return dict(config[profile])
+
+
 def _ensure_cli_path() -> None:
     """Ensure the Databricks CLI is in PATH.
 

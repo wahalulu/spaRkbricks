@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import time
 
-from sparkbricks.auth import _ensure_cli_path, get_workspace_client
+from sparkbricks.auth import _ensure_cli_path, _get_profile_config, get_workspace_client
 from sparkbricks.connect import _load_dotenv
 
 
@@ -227,8 +227,14 @@ def ensure_cluster_running(
 ) -> bool:
     """Ensure the Databricks cluster is running, starting it if necessary.
 
-    Automatically loads configuration from .env file (if python-dotenv installed).
+    Automatically loads configuration from .env file (if python-dotenv installed)
+    and from ~/.databrickscfg profile.
     Supports both OAuth and PAT authentication.
+
+    Configuration precedence for cluster_id:
+    1. Function parameter (if provided)
+    2. DATABRICKS_CLUSTER_ID environment variable
+    3. cluster_id from ~/.databrickscfg profile
 
     Args:
         cluster_id: Databricks cluster ID (or set DATABRICKS_CLUSTER_ID in .env)
@@ -248,14 +254,20 @@ def ensure_cluster_running(
         Waiting for cluster to start.........
         Cluster running (took 95s)
         True
+
+        >>> # Use cluster_id from PROD profile in ~/.databrickscfg
+        >>> ensure_cluster_running(profile="PROD")
     """
     # Load .env file if available
     _load_dotenv()
 
-    # Get cluster_id from param or env
-    effective_cluster_id = cluster_id or os.environ.get("DATABRICKS_CLUSTER_ID")
+    # Read profile config from ~/.databrickscfg as fallback
+    profile_config = _get_profile_config(profile) if profile else {}
+
+    # Get cluster_id: parameter > env var > profile config
+    effective_cluster_id = cluster_id or os.environ.get("DATABRICKS_CLUSTER_ID") or profile_config.get("cluster_id")
     if not effective_cluster_id:
-        print("ERROR: cluster_id not provided and DATABRICKS_CLUSTER_ID not set")
+        print("ERROR: cluster_id not provided, not in env, and not in profile")
         return False
 
     try:

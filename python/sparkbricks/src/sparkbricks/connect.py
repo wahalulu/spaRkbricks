@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from sparkbricks.auth import AuthType, _ensure_cli_path, get_workspace_client
+from sparkbricks.auth import AuthType, _ensure_cli_path, _get_profile_config, get_workspace_client
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
@@ -57,6 +57,11 @@ def get_spark(
     2. If DATABRICKS_TOKEN env var set -> PAT auth
     3. Otherwise -> OAuth via Databricks CLI profile
 
+    Configuration precedence for host and cluster_id:
+    1. Function parameter (if provided)
+    2. Environment variable (DATABRICKS_HOST, DATABRICKS_CLUSTER_ID)
+    3. ~/.databrickscfg profile settings
+
     Args:
         host: Databricks workspace URL (or set DATABRICKS_HOST in .env)
         cluster_id: Cluster ID (or set DATABRICKS_CLUSTER_ID in .env)
@@ -78,6 +83,9 @@ def get_spark(
 
         >>> # Explicit OAuth with specific profile
         >>> spark = get_spark(auth_type="oauth", profile="work")
+
+        >>> # Use settings from PROD profile in ~/.databrickscfg
+        >>> spark = get_spark(profile="PROD")
     """
     global _spark
 
@@ -90,16 +98,22 @@ def get_spark(
     # Import here to avoid circular imports
     from sparkbricks.cluster import ensure_cluster_running
 
+    # Read profile config from ~/.databrickscfg as fallback
+    profile_config = _get_profile_config(profile) if profile else {}
+
     # Determine effective auth type
     effective_token = token or os.environ.get("DATABRICKS_TOKEN")
     effective_auth_type = auth_type
     if auth_type == "auto":
         effective_auth_type = "pat" if effective_token else "oauth"
 
+    # Resolve host and cluster_id: parameter > env var > profile config
+    effective_host = host or os.environ.get("DATABRICKS_HOST") or profile_config.get("host")
+    effective_cluster_id = cluster_id or os.environ.get("DATABRICKS_CLUSTER_ID") or profile_config.get("cluster_id")
+
     # Setup environment based on auth type
     if effective_auth_type == "pat":
         # PAT mode - set environment directly
-        effective_host = host or os.environ.get("DATABRICKS_HOST")
         if not effective_host:
             print("ERROR: DATABRICKS_HOST required when using token authentication")
             return None
@@ -117,20 +131,17 @@ def get_spark(
         if profile:
             os.environ["DATABRICKS_CONFIG_PROFILE"] = profile
 
-    # Set environment if provided
-    if host:
-        os.environ["DATABRICKS_HOST"] = host
-    if cluster_id:
-        os.environ["DATABRICKS_CLUSTER_ID"] = cluster_id
-
-    # Get effective cluster_id (from param or env)
-    effective_cluster_id = cluster_id or os.environ.get("DATABRICKS_CLUSTER_ID")
+    # Set environment for DatabricksSession
+    if effective_host:
+        os.environ["DATABRICKS_HOST"] = effective_host
+    if effective_cluster_id:
+        os.environ["DATABRICKS_CLUSTER_ID"] = effective_cluster_id
 
     # Ensure cluster is running before connecting
     if auto_start_cluster and effective_cluster_id:
         if not ensure_cluster_running(
             cluster_id=effective_cluster_id,
-            host=host or os.environ.get("DATABRICKS_HOST"),
+            host=effective_host,
             token=effective_token,
             profile=profile,
             auth_type=effective_auth_type,
