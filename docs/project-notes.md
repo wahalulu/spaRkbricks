@@ -101,27 +101,48 @@ Posit (formerly RStudio) is Databricks' Developer Tools Partner of the Year for 
 
 pysparklyr also added `.databrickscfg` support (GitHub issue #88, merged via PR #89).
 
+### pysparklyr OAuth Without Posit Workbench (Tested 2026-02-10)
+
+**Confirmed: pysparklyr v0.2.0 supports standalone Databricks CLI OAuth without Posit Workbench.**
+
+Code analysis of pysparklyr v0.2.0 reveals two distinct OAuth paths:
+
+1. **Posit Workbench OAuth** — reads `DATABRICKS_CONFIG_FILE` env var (set by Workbench), validates "posit-workbench" in path, extracts token from the managed config file. Enterprise/server use.
+
+2. **Standalone Databricks CLI OAuth** — when no token is found and the user is on a desktop environment, `databricks_desktop_login()` shells out to the Databricks CLI (`databricks auth login --host <host>` or `--profile <profile>`). The CLI handles the browser-based OAuth flow and caches tokens at `~/.databricks/token-cache.json`. When token is empty, pysparklyr sets `auth_type = "databricks-cli"` on the SDK Config object.
+
+**Token resolution priority in pysparklyr:**
+1. Direct `token` argument (highest)
+2. `DATABRICKS_TOKEN` or `CONNECT_DATABRICKS_TOKEN` env var
+3. Posit Workbench config file
+4. Posit Connect viewer token (via `connectcreds` package)
+5. Falls back to `databricks_desktop_login()` (CLI OAuth)
+
+**Desktop OAuth limitations:** Only works on actual desktop environments. Does not work on RStudio Server, Posit Workbench servers, or Google Colab — in those environments the Posit-managed OAuth or env var paths are required.
+
 ### What This Means for sparkbricks
 
-**If the user has Posit Workbench (paid):** OAuth is handled by Posit infrastructure. Admin configures credentials, Workbench manages tokens, pysparklyr picks them up. sparkbricks' OAuth value is reduced.
-
-**If the user has standalone R/RStudio/Positron (free):** The OAuth situation is unclear. pysparklyr v0.1.7 "defers to SDK" which may pick up CLI-based OAuth from `.databrickscfg`, but the primary OAuth path is routed through Posit products. sparkbricks' explicit token extraction still fills a gap here.
+**The "OAuth from R" gap has narrowed.** pysparklyr v0.2.0 handles standalone OAuth from desktop R. sparkbricks is no longer "the only way" to get OAuth working from R without Posit Workbench.
 
 **What pysparklyr does not do regardless of version:**
-- Cluster auto-start
+- Cluster auto-start (sparkbricks' strongest differentiator)
 - Unified Python + R API
-- Volume file operations
-- .env file loading
-- 3-tier config resolution
-- SQL convenience helpers
+- Volume file operations with shared auth
+- `.env` file loading
+- 3-tier config resolution (param > env > profile)
+- SQL convenience helpers (`sql()`, `tables()`, `describe()`, `count()`)
+- reticulate initialization safety (`RETICULATE_PYTHON` ordering)
 
-### Strategic Implication
+### Revised Strategic Position
 
-The Posit/Databricks partnership is optimized for teams that pay for Posit Workbench. sparkbricks serves a different niche: making Databricks work from a local machine without managed infrastructure. Posit has no incentive to close this gap -- it would undercut their paid product.
+sparkbricks' R-side OAuth story should shift from "the only way to get OAuth" to "a simpler, more complete local development experience." The messaging should emphasize:
 
-### Open Question
+1. **Cluster auto-start** — pysparklyr doesn't do this at all. This alone saves minutes of friction per day.
+2. **Unified R + Python** — same API surface, same auth, same config. pysparklyr is R-only.
+3. **Batteries included** — volume files, SQL helpers, environment management in one package.
+4. **Zero-friction config** — 3-tier resolution means the user's config "just works" regardless of where they put it.
 
-It is worth testing whether a clean install of pysparklyr v0.1.7+ with a `.databrickscfg` profile from `databricks auth login` works for OAuth from a local machine without Posit Workbench. If it does, sparkbricks' R OAuth story shifts from "the only way" to "a simpler way with more features." If it doesn't, sparkbricks remains the only option for free-tier R users.
+The Posit/Databricks partnership is optimized for teams that pay for Posit Workbench. sparkbricks serves the broader niche: making Databricks work well from any local machine without managed infrastructure.
 
 ---
 
@@ -369,7 +390,7 @@ The ADBC/SQL warehouse path in the expanded vision avoids this entirely.
 
 ### Upstream Changes in pysparklyr
 
-As pysparklyr evolves its auth support, some of sparkbricks' R-side value may diminish. Monitoring pysparklyr releases for OAuth improvements is important. If standalone OAuth (without Posit Workbench) starts working reliably in pysparklyr, the messaging should shift to emphasize the other features (auto-start, unified API, convenience helpers).
+pysparklyr v0.2.0 now supports standalone OAuth without Posit Workbench (confirmed 2026-02-10). sparkbricks' R-side OAuth value has shifted from "the only way" to "a simpler way with more features." Monitor pysparklyr releases for further improvements, particularly around cluster lifecycle management — if they add auto-start, that would significantly narrow sparkbricks' differentiators on the R side.
 
 ### Databricks SDK API Changes
 
